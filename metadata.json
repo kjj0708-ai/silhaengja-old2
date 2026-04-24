@@ -1,0 +1,6 @@
+{
+  "name": "실행자들 회원관리",
+  "description": "실행자들 모임의 출석, 과제, 회계 및 공지사항을 관리하고 등급제를 지원하는 앱",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

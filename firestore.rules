@@ -1,0 +1,269 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isBootstrapAdmin() { return isSignedIn() && request.auth.token.email == "kjj0708@gmail.com"; }
+    
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    
+    function getAdminRole() { 
+      return isBootstrapAdmin() ? 'manager' : 
+             (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ? 
+                get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('role', 'none') : 
+                (exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') : 
+                   'none'
+                )
+             );
+    }
+
+    function isAdmin() { return isSignedIn() && (isBootstrapAdmin() || exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'none') != 'none')); }
+    function isManager() { return getAdminRole() == 'manager'; }
+    function isTreasurer() { return getAdminRole() == 'manager' || getAdminRole() == 'treasurer'; }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'affiliation', 'tier', 'totalPoints', 'createdAt'])
+        && (data.keys().size() >= 6 && data.keys().size() <= 8)
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 64
+        && data.affiliation is string && data.affiliation.size() > 0 && data.affiliation.size() <= 128
+        && data.tier is string && data.tier.size() > 0 && data.tier.size() <= 32
+        && data.totalPoints is number
+        && data.createdAt is timestamp
+        && (data.get('lastMissionId', 'none') is string)
+        && (data.get('lastMeetingId', 'none') is string);
+    }
+
+    function isValidPointIncrement() {
+      let isPointChange = incoming().totalPoints != existing().totalPoints;
+      let diff = incoming().totalPoints - existing().totalPoints;
+      
+      let mId = incoming().get('lastMissionId', '');
+      let missionChanged = mId != existing().get('lastMissionId', '');
+      
+      let mtgId = incoming().get('lastMeetingId', '');
+      let meetingChanged = mtgId != existing().get('lastMeetingId', '');
+
+      return isPointChange && (
+        // Mission Completion
+        (diff > 0 && missionChanged && existsAfter(/databases/$(database)/documents/mission_executions/$(mId + '_' + request.auth.uid))) ||
+        // Meeting Registration (+10)
+        (diff == 10 && meetingChanged && existsAfter(/databases/$(database)/documents/meeting_registrations/$(mtgId + '_' + request.auth.uid))) ||
+        // Meeting Cancellation (-10)
+        (diff < 0)
+      );
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['role', 'createdAt'])
+        && data.keys().size() == 2
+        && data.role is string && data.role.matches('^(manager|treasurer)$')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMission(data) {
+      return data.keys().hasAll(['title', 'description', 'points', 'createdAt'])
+        && (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAny(['deadline'])))
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 128
+        && data.description is string && data.description.size() <= 1024
+        && data.points is number
+        && data.createdAt is timestamp
+        // Remove strict check on deadline, let it be anything string or timestamp or null, or absent
+        && (!data.keys().hasAny(['deadline']) || data.deadline == null || data.deadline is timestamp || data.deadline is string);
+    }
+
+    function isValidMissionExecution(data) {
+      return data.keys().hasAll(['userId', 'userName', 'missionId', 'content', 'submittedAt'])
+        && (data.keys().size() == 5 || (data.keys().size() == 6 && data.keys().hasAny(['image'])))
+        && data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() > 0
+        && data.missionId is string && data.missionId.size() > 0 && data.missionId.size() <= 128
+        && (data.get('content', '') is string) && (data.get('content', '').size() <= 4096)
+        && (data.get('image', null) == null || (data.image is string && data.image.size() <= 250000))
+        && data.submittedAt is timestamp;
+    }
+
+    function isValidMeeting(data) {
+      return data.keys().hasAll(['title', 'date', 'maxAttendees', 'attendeesCount', 'createdAt'])
+        && data.keys().size() == 5
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 128
+        && data.date is string && data.date.size() > 0 && data.date.size() <= 32
+        && data.maxAttendees is number && data.maxAttendees > 0
+        && data.attendeesCount is number && data.attendeesCount >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMeetingRegistration(data) {
+      return data.keys().hasAll(['userId', 'userName', 'meetingId', 'createdAt'])
+        && data.keys().size() == 4
+        && data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() > 0
+        && data.meetingId is string && data.meetingId.size() > 0 && data.meetingId.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['userId', 'meetingId', 'isPresent', 'createdAt'])
+        && data.keys().size() == 4
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.meetingId is string && data.meetingId.size() > 0 && data.meetingId.size() <= 128
+        && data.isPresent is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotice(data) {
+      return data.keys().hasAll(['title', 'content', 'createdAt'])
+        && (data.keys().size() == 3 || (data.keys().size() == 4 && data.keys().hasAny(['isImportant'])))
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 128
+        && data.content is string && data.content.size() <= 2048
+        && data.createdAt is timestamp
+        && (data.get('isImportant', false) is bool);
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['type', 'amount', 'title', 'createdAt'])
+        && (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAny(['date'])))
+        && data.type is string && data.type.matches('^(income|expense)$')
+        && data.amount is number
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 128
+        && data.createdAt is timestamp
+        && (data.get('date', "") is string);
+    }
+
+    // Collections
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) && userId == request.auth.uid && isValidUser(incoming()) && incoming().createdAt == request.time && incoming().totalPoints == 0;
+      allow update: if isSignedIn() && isValidId(userId) && (
+        isAdmin() ||
+        (userId == request.auth.uid && isValidUser(incoming()) && incoming().uid == existing().uid && incoming().createdAt == existing().createdAt && incoming().tier == existing().tier && (
+          incoming().totalPoints == existing().totalPoints || isValidPointIncrement()
+        ))
+      );
+    }
+
+    match /admins/{userId} {
+      allow read: if isSignedIn(); // Allow reading to securely let clients check admins
+      allow create: if isSignedIn() && request.auth.uid == userId && isBootstrapAdmin() && isValidAdmin(incoming());
+      // Base admin needs to be manually created through Firebase Console
+      // Once created, they can't be modified by clients
+      allow update, delete: if false; 
+    }
+
+    match /missions/{missionId} {
+      allow read: if isSignedIn();
+      allow create: if isManager() && isValidId(missionId) && isValidMission(incoming()) && incoming().createdAt == request.time;
+      allow update: if isManager() && isValidId(missionId) && isValidMission(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isManager() && isValidId(missionId);
+    }
+
+    match /mission_executions/{executionId} {
+      // Must be specific executionId format to prevent duplicates (e.g. missionId_userId)
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(executionId) 
+        && executionId == incoming().missionId + '_' + request.auth.uid
+        && isValidMissionExecution(incoming())
+        && exists(/databases/$(database)/documents/missions/$(incoming().missionId))
+        && incoming().submittedAt == request.time;
+      allow update: if isSignedIn() 
+        && existing().userId == request.auth.uid
+        && isValidMissionExecution(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['content'])
+        && incoming().missionId == existing().missionId 
+        && incoming().userId == existing().userId 
+        && incoming().submittedAt == existing().submittedAt;
+      allow delete: if isManager() || (isSignedIn() && existing().userId == request.auth.uid);
+    }
+
+    match /meetings/{meetingId} {
+      allow read: if isSignedIn();
+      allow create: if isManager() && isValidId(meetingId) && isValidMeeting(incoming()) && incoming().createdAt == request.time && incoming().attendeesCount == 0;
+      allow update: if isValidId(meetingId) && (
+        isManager() || 
+        // User registering: can only increment attendeesCount atomically if <= maxAttendees
+        (
+          isSignedIn() 
+          && incoming().diff(existing()).affectedKeys().hasOnly(['attendeesCount']) 
+          && (
+               (incoming().attendeesCount == existing().attendeesCount + 1 && incoming().attendeesCount <= existing().maxAttendees)
+               || (incoming().attendeesCount == existing().attendeesCount - 1)
+             )
+        )
+       );
+      allow delete: if isManager() && isValidId(meetingId);
+    }
+
+    match /meeting_registrations/{registrationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(registrationId)
+        && registrationId == incoming().meetingId + '_' + request.auth.uid
+        && isValidMeetingRegistration(incoming())
+        && exists(/databases/$(database)/documents/meetings/$(incoming().meetingId))
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    match /attendances/{attendanceId} {
+      allow read: if isSignedIn();
+      allow create: if isManager() 
+        && isValidId(attendanceId) 
+        && isValidAttendance(incoming()) 
+        && exists(/databases/$(database)/documents/users/$(incoming().userId))
+        && exists(/databases/$(database)/documents/meetings/$(incoming().meetingId))
+        && incoming().createdAt == request.time;
+      allow update: if isManager() 
+        && isValidId(attendanceId) 
+        && isValidAttendance(incoming()) 
+        && incoming().createdAt == existing().createdAt
+        && incoming().userId == existing().userId
+        && incoming().meetingId == existing().meetingId;
+      allow delete: if isManager() && isValidId(attendanceId);
+    }
+
+    match /notices/{noticeId} {
+      allow read: if isSignedIn();
+      allow create: if isManager() && isValidId(noticeId) && isValidNotice(incoming()) && incoming().createdAt == request.time;
+      allow update: if isManager() && isValidId(noticeId) && isValidNotice(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isManager() && isValidId(noticeId);
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow create: if isTreasurer() && isValidId(transactionId) && isValidTransaction(incoming()) && incoming().createdAt == request.time;
+      allow update: if isTreasurer() && isValidId(transactionId) && isValidTransaction(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isTreasurer() && isValidId(transactionId);
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['content', 'category', 'authorUid', 'authorName', 'createdAt'])
+        && data.content is string && data.content.size() > 0
+        && data.category is string && data.category.matches('^(notice|free)$')
+        && data.authorUid == request.auth.uid;
+    }
+
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidPost(incoming());
+      allow update: if isSignedIn() && (existing().authorUid == request.auth.uid || isManager()) && isValidPost(incoming());
+      allow delete: if isSignedIn() && (existing().authorUid == request.auth.uid || isManager());
+    }
+
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+  }
+}

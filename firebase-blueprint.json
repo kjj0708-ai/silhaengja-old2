@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A member of the community",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "affiliation": { "type": "string" },
+        "tier": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "name", "affiliation", "tier", "totalPoints", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "An admin role marker",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["manager", "treasurer"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["role", "createdAt"]
+    },
+    "Mission": {
+      "title": "Mission",
+      "description": "A task assigned to members",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "points": { "type": "number" },
+        "deadline": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "points", "createdAt"]
+    },
+    "MissionExecution": {
+      "title": "MissionExecution",
+      "description": "A record of a mission completed by a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "missionId": { "type": "string" },
+        "content": { "type": "string" },
+        "submittedAt": { "type": "number" }
+      },
+      "required": ["userId", "missionId", "submittedAt"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Weekly meeting session",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "maxAttendees": { "type": "number" },
+        "attendeesCount": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "date", "maxAttendees", "attendeesCount", "createdAt"]
+    },
+    "MeetingRegistration": {
+      "title": "MeetingRegistration",
+      "description": "First-come first-served meeting reservation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "meetingId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "meetingId", "createdAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Attendance record for a user in a meeting",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "meetingId": { "type": "string" },
+        "isPresent": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "meetingId", "isPresent", "createdAt"]
+    },
+    "Notice": {
+      "title": "Notice",
+      "description": "System or admin announcement",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "isImportant": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "content", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial record",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["type", "amount", "title", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Community post or notice",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string", "enum": ["notice", "free"] },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "isImportant": { "type": "boolean" },
+        "image": { "type": "string" }
+      },
+      "required": ["content", "category", "authorUid", "authorName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Members profiles"
+    },
+    "admins/{userId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Admin privileges map"
+    },
+    "missions/{missionId}": {
+      "schema": { "$ref": "#/entities/Mission" },
+      "description": "List of executable missions"
+    },
+    "mission_executions/{executionId}": {
+      "schema": { "$ref": "#/entities/MissionExecution" },
+      "description": "Records of executed missions"
+    },
+    "meetings/{meetingId}": {
+      "schema": { "$ref": "#/entities/Meeting" },
+      "description": "Meeting sessions"
+    },
+    "meeting_registrations/{registrationId}": {
+      "schema": { "$ref": "#/entities/MeetingRegistration" },
+      "description": "Meeting RSVP records"
+    },
+    "attendances/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Attendance logs"
+    },
+    "notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/Notice" },
+      "description": "System notices"
+    },
+    "transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Financial accounting records"
+    },
+    "posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Board posts"
+    }
+  }
+}

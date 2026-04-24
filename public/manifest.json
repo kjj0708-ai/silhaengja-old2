@@ -1,0 +1,23 @@
+{
+  "short_name": "실행자들",
+  "name": "실행자들 ARCHITECT",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1e293b",
+  "display": "standalone",
+  "theme_color": "#4f46e5",
+  "description": "도시주택국 실행자들을 위한 포인트 및 미션 관리 시스템"
+}
