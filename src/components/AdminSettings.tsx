@@ -1,26 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  onSnapshot, 
-  query, 
-  orderBy, 
-  doc, 
-  updateDoc, 
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  doc,
+  updateDoc,
+  deleteDoc,
   increment,
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { 
-  Settings, 
-  Shield, 
-  UserPlus, 
-  UserMinus, 
-  Coins, 
-  X, 
+import {
+  Settings,
+  Shield,
+  UserPlus,
+  UserMinus,
+  Coins,
+  X,
   Search,
   ChevronRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { UserProfile } from '../hooks/useUserRole';
 import { motion, AnimatePresence } from 'motion/react';
@@ -37,6 +41,8 @@ export default function AdminSettings({ isOpen, onClose, adminRole }: AdminSetti
   const [searchTerm, setSearchTerm] = useState('');
   const [processing, setProcessing] = useState<string | null>(null);
   const [memberPoints, setMemberPoints] = useState<{[key: string]: number}>({});
+  const [editingAffiliation, setEditingAffiliation] = useState<string | null>(null);
+  const [affiliationInput, setAffiliationInput] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -86,6 +92,43 @@ export default function AdminSettings({ isOpen, onClose, adminRole }: AdminSetti
     } catch (err: any) {
       console.error(err);
       alert('포인트 지급 실패: ' + err.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleDeleteMember = async (member: UserProfile) => {
+    if (processing) return;
+    if (member.role === 'manager') {
+      alert('관리자 계정은 삭제할 수 없습니다.');
+      return;
+    }
+    if (!window.confirm(`${member.name}(${member.affiliation || '소속없음'}) 회원을 정말 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    setProcessing(member.uid);
+    try {
+      await deleteDoc(doc(db, 'users', member.uid));
+    } catch (err: any) {
+      console.error(err);
+      alert('삭제 실패: ' + err.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const startEditAffiliation = (member: UserProfile) => {
+    setEditingAffiliation(member.uid);
+    setAffiliationInput(member.affiliation || '');
+  };
+
+  const handleSaveAffiliation = async (member: UserProfile) => {
+    if (processing || !affiliationInput.trim()) return;
+    setProcessing(member.uid);
+    try {
+      await updateDoc(doc(db, 'users', member.uid), { affiliation: affiliationInput.trim() });
+      setEditingAffiliation(null);
+    } catch (err: any) {
+      console.error(err);
+      alert('소속 수정 실패: ' + err.message);
     } finally {
       setProcessing(null);
     }
@@ -174,7 +217,33 @@ export default function AdminSettings({ isOpen, onClose, adminRole }: AdminSetti
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-500 font-medium truncate">{member.affiliation || '소속 정보 없음'}</p>
+                      {editingAffiliation === member.uid ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={affiliationInput}
+                            onChange={e => setAffiliationInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveAffiliation(member); if (e.key === 'Escape') setEditingAffiliation(null); }}
+                            className="bg-[#0f172a] border border-indigo-500 rounded px-2 py-0.5 text-[11px] text-white outline-none w-36"
+                          />
+                          <button onClick={() => handleSaveAffiliation(member)} disabled={!!processing} className="p-0.5 text-emerald-400 hover:text-emerald-300 disabled:opacity-30">
+                            <Check size={14} />
+                          </button>
+                          <button onClick={() => setEditingAffiliation(null)} className="p-0.5 text-slate-500 hover:text-white">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <p className="text-[10px] text-slate-500 font-medium truncate">{member.affiliation || '소속 정보 없음'}</p>
+                          {adminRole === 'manager' && (
+                            <button onClick={() => startEditAffiliation(member)} className="text-slate-600 hover:text-indigo-400 transition-colors shrink-0">
+                              <Pencil size={10} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <div className="text-[10px] text-indigo-400/70 font-mono font-bold mt-0.5">{member.totalPoints.toLocaleString()} <span className="opacity-50 text-[8px]">PT</span></div>
                     </div>
                   </div>
@@ -203,13 +272,25 @@ export default function AdminSettings({ isOpen, onClose, adminRole }: AdminSetti
 
                     {/* Admin role can manage everything */}
                     {adminRole === 'manager' && (
-                      <button 
+                      <button
                         onClick={() => handleToggleTreasurer(member)}
                         disabled={!!processing}
                         className={`p-2 h-9 rounded-lg transition-all relative group/btn ${member.role === 'treasurer' ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/40 border border-emerald-500/20' : member.role === 'manager' ? 'bg-amber-600/20 text-amber-500 border-amber-500/20 cursor-default' : 'text-slate-500 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700'} disabled:opacity-30`}
                       >
                         {member.role === 'manager' ? <Shield size={18} className="text-amber-500" fill="currentColor" /> : member.role === 'treasurer' ? <UserMinus size={18} /> : <UserPlus size={18} />}
                         <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-900 text-[10px] text-white px-2 py-1.5 rounded border border-slate-700 opacity-0 group-hover/btn:opacity-100 transition-all scale-75 group-hover/btn:scale-100 whitespace-nowrap pointer-events-none z-10 shadow-2xl">총무권한</span>
+                      </button>
+                    )}
+
+                    {/* Delete member */}
+                    {adminRole === 'manager' && member.role !== 'manager' && (
+                      <button
+                        onClick={() => handleDeleteMember(member)}
+                        disabled={!!processing}
+                        className="p-2 h-9 rounded-lg bg-red-900/20 text-red-500 hover:bg-red-600/30 hover:text-red-400 border border-red-900/30 transition-all relative group/btn disabled:opacity-30"
+                      >
+                        <Trash2 size={16} />
+                        <span className="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-900 text-[10px] text-white px-2 py-1.5 rounded border border-slate-700 opacity-0 group-hover/btn:opacity-100 transition-all scale-75 group-hover/btn:scale-100 whitespace-nowrap pointer-events-none z-10 shadow-2xl">회원삭제</span>
                       </button>
                     )}
                   </div>
