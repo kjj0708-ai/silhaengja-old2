@@ -269,43 +269,45 @@ export default function MeetingBoard({
     <div className="flex flex-col gap-8 w-full animate-in fade-in duration-500">
       {/* Manager Controls */}
       {adminRole === 'manager' && (
-        <div className="bg-[#1e293b] p-6 rounded-xl border border-slate-800 shadow-xl overflow-hidden relative group">
+        <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-800 shadow-xl overflow-hidden relative group">
           <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-          <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+          <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
             <CalendarCheck size={14} className="text-indigo-400" /> 신규 모임 일정 생성
           </h3>
-          <form onSubmit={handleCreateMeeting} className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 w-full space-y-1.5">
-              <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">식별자 (제목)</label>
+          <form onSubmit={handleCreateMeeting} className="flex flex-col gap-2.5">
+            <div>
+              <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">식별자 (제목)</label>
               <input type="text" required value={newTitle} onChange={v => setNewTitle(v.target.value)}
-                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-indigo-500 font-medium" placeholder="예: 첫 번째 세션" />
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-indigo-500 font-medium" placeholder="예: 첫 번째 세션" />
             </div>
-            <div className="w-full sm:w-64 shrink-0 space-y-1.5 flex gap-2">
-              <div className="flex-1 space-y-1.5 ">
-                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">날짜선택</label>
-                <div className="relative group cursor-pointer" onClick={e => {
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">날짜</label>
+                <div className="relative cursor-pointer" onClick={e => {
                   const input = e.currentTarget.querySelector('input');
                   if (input) try { input.showPicker(); } catch {}
                 }}>
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500/70 group-hover:text-indigo-400 transition-colors pointer-events-none" />
+                  <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-500/70 pointer-events-none" />
                   <input type="date" required value={newDate} onChange={v => setNewDate(v.target.value)}
-                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 pl-9 text-xs text-white outline-none focus:border-indigo-500 font-mono [color-scheme:dark] cursor-pointer" />
+                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2 pl-8 text-xs text-white outline-none focus:border-indigo-500 font-mono [color-scheme:dark] cursor-pointer" />
                 </div>
               </div>
-              <div className="w-24 space-y-1.5">
-                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">시간</label>
+              <div className="w-24">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">시간</label>
                 <input type="time" required value={newTime} onChange={v => setNewTime(v.target.value)}
-                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-indigo-500 font-mono [color-scheme:dark] cursor-pointer" onClick={e => { try { (e.target as HTMLInputElement).showPicker(); } catch {} }} />
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-indigo-500 font-mono [color-scheme:dark] cursor-pointer" onClick={e => { try { (e.target as HTMLInputElement).showPicker(); } catch {} }} />
               </div>
             </div>
-             <div className="w-24 shrink-0 space-y-1.5">
-              <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">정원</label>
-              <input type="number" required min="1" value={newMax} onChange={v => setNewMax(Number(v.target.value))}
-                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 text-xs text-white outline-none focus:border-indigo-500 font-mono" />
+            <div className="flex gap-2 items-end">
+              <div className="w-24">
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">정원</label>
+                <input type="number" required min="1" value={newMax} onChange={v => setNewMax(Number(v.target.value))}
+                  className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-indigo-500 font-mono" />
+              </div>
+              <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold py-2 rounded-lg uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                생성하기
+              </button>
             </div>
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-8 py-2.5 rounded-lg shrink-0 h-[38px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
-              확정
-            </button>
           </form>
         </div>
       )}
@@ -403,11 +405,11 @@ export default function MeetingBoard({
                     </span>
                   </div>
 
-                  <div className="min-h-[32px] flex flex-wrap gap-1.5">
+                  <div className="min-h-[24px] flex flex-wrap gap-1">
                     {attendees.map((reg) => (
-                       <div key={reg.id} className="w-6 h-6 rounded bg-[#0f172a] border border-slate-700 flex items-center justify-center overflow-hidden hover:border-indigo-500 transition-colors cursor-help" title={reg.userName}>
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${reg.userId}`} alt="att" />
-                       </div>
+                       <span key={reg.id} className="text-[10px] font-bold bg-[#0f172a] border border-slate-700 text-slate-300 px-2 py-0.5 rounded hover:border-indigo-500/50 hover:text-white transition-colors">
+                         {reg.userName}
+                       </span>
                     ))}
                     {attendees.length === 0 && <span className="text-[9px] text-slate-600 font-bold uppercase tracking-widest self-center italic">참여자를 기다리는 중...</span>}
                   </div>

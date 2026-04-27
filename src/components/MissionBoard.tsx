@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp, writeBatch, getDocs, where, updateDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '../firebase';
@@ -137,6 +137,9 @@ export default function MissionBoard({
   const [submitContent, setSubmitContent] = useState('');
   const [submitImage, setSubmitImage] = useState<string | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const lightboxScale = useRef(1);
+  const lastTouchDist = useRef<number | null>(null);
 
   const safeAlert = (msg: string) => {
     try { window.alert(msg); } catch (e) { console.log(msg); }
@@ -416,6 +419,47 @@ export default function MissionBoard({
 
   return (
     <div className="flex flex-col gap-6 w-full pb-10 animate-in fade-in duration-500">
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white bg-black/60 rounded-full p-2 z-10"
+            onClick={() => setLightboxImage(null)}
+          >
+            <X size={22} />
+          </button>
+          <div
+            className="overflow-auto flex items-center justify-center"
+            style={{ width: '100vw', height: '100vh', touchAction: 'none' }}
+            onClick={e => e.stopPropagation()}
+            onTouchMove={e => {
+              if (e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (lastTouchDist.current !== null) {
+                  const delta = dist / lastTouchDist.current;
+                  lightboxScale.current = Math.min(5, Math.max(1, lightboxScale.current * delta));
+                  const img = e.currentTarget.querySelector('img') as HTMLImageElement;
+                  if (img) img.style.transform = `scale(${lightboxScale.current})`;
+                }
+                lastTouchDist.current = dist;
+              }
+            }}
+            onTouchEnd={() => { lastTouchDist.current = null; }}
+          >
+            <img
+              src={lightboxImage}
+              alt="확대 이미지"
+              style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', transition: 'transform 0.1s', transformOrigin: 'center center' }}
+            />
+          </div>
+        </div>
+      )}
       
       {/* Manager Tools */}
       {adminRole === 'manager' && (
@@ -684,11 +728,11 @@ export default function MissionBoard({
                       
                       {ex.image && (
                          <div className="mt-1 w-full max-w-[200px] overflow-hidden rounded-lg border border-slate-800 shadow-xl">
-                           <img 
-                             src={ex.image} 
-                             alt="intel" 
-                             className="w-full h-auto cursor-zoom-in brightness-90 hover:brightness-100 transition-all opacity-80 hover:opacity-100" 
-                             onClick={() => window.open(ex.image, '_blank')}
+                           <img
+                             src={ex.image}
+                             alt="intel"
+                             className="w-full h-auto cursor-zoom-in brightness-90 hover:brightness-100 transition-all opacity-80 hover:opacity-100"
+                             onClick={() => { lightboxScale.current = 1; setLightboxImage(ex.image!); }}
                            />
                          </div>
                       )}
