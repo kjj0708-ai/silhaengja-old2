@@ -1,11 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, browserLocalPersistence, setPersistence, signOut } from 'firebase/auth';
+import { initializeAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, browserLocalPersistence, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+// initializeAuth로 처음부터 localStorage 고정 → iOS 세션 유지 안정화
+export const auth = initializeAuth(app, {
+  persistence: browserLocalPersistence,
+});
 // Use the exact database ID from config
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 
@@ -36,7 +39,6 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
 export const loginWithGoogle = async () => {
   try {
     if (isIOS()) {
-      await setPersistence(auth, browserLocalPersistence);
       await signInWithRedirect(auth, googleProvider);
       return null; // 페이지가 리다이렉트됨, onAuthStateChanged가 처리
     }
