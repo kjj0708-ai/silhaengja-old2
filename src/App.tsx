@@ -12,7 +12,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, loginWithGoogle, logout, testFirestoreConnection, handleRedirectResult } from './firebase';
+import { auth, loginWithGoogle, loginWithPin, logout, testFirestoreConnection, handleRedirectResult } from './firebase';
 import { useUserRole } from './hooks/useUserRole';
 import Onboarding from './components/Onboarding';
 import MeetingBoard from './components/MeetingBoard';
@@ -24,6 +24,134 @@ import RankingBoard from './components/RankingBoard';
 import AdminSettings from './components/AdminSettings';
 import ProfileSettings from './components/ProfileSettings';
 import { Settings } from 'lucide-react';
+
+function LoginScreen({ onError }: { onError: (msg: string | null) => void }) {
+  const [mode, setMode] = useState<'select' | 'pin'>('select');
+  const [pinId, setPinId] = useState('');
+  const [pin, setPin] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState('');
+
+  const handleGoogleLogin = async () => {
+    try {
+      onError(null);
+      await loginWithGoogle();
+    } catch (e: any) {
+      let msg = `로그인 중 문제가 발생했습니다: ${e.message || '알 수 없는 오류'}`;
+      if (e.code === 'auth/unauthorized-domain') msg = `도메인(${window.location.hostname})이 Firebase 승인 도메인에 없습니다.`;
+      else if (e.code === 'auth/popup-blocked') msg = '팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.';
+      else if (e.code === 'auth/popup-closed-by-user') msg = '로그인 창이 닫혔습니다. 다시 시도해 주세요.';
+      else if (e.code === 'auth/network-request-failed') msg = '네트워크 연결 상태를 확인해 주세요.';
+      onError(msg);
+    }
+  };
+
+  const handlePinLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+    if (!pinId.trim()) return setPinError('아이디를 입력해주세요.');
+    if (!/^[a-zA-Z0-9가-힣]+$/.test(pinId.trim())) return setPinError('아이디는 영문, 숫자, 한글만 사용 가능합니다.');
+    if (pin.length !== 6) return setPinError('PIN은 6자리 숫자여야 합니다.');
+    setPinLoading(true);
+    try {
+      await loginWithPin(pinId, pin);
+    } catch (e: any) {
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+        setPinError('PIN이 틀렸습니다.');
+      } else if (e.code === 'auth/too-many-requests') {
+        setPinError('시도 횟수 초과. 잠시 후 다시 시도해주세요.');
+      } else {
+        setPinError(`오류: ${e.message}`);
+      }
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-[#0f172a] p-4 font-sans">
+      <div className="bg-[#1e293b] p-8 rounded-xl shadow-2xl border border-slate-800 text-center max-w-sm w-full relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-indigo-600"></div>
+        <div className="mx-auto mb-6 flex justify-center">
+          <div className="relative">
+            <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-indigo-600 rounded-2xl blur opacity-25"></div>
+            <div className="relative w-24 h-24 bg-[#1e293b] rounded-2xl flex items-center justify-center p-3 border border-slate-700 shadow-2xl">
+              <Logo size={48} />
+            </div>
+          </div>
+        </div>
+        <h1 className="text-xl font-bold text-white mb-1 tracking-tight">실행자들 ARCHITECT</h1>
+        <p className="text-slate-500 mb-6 text-[10px] uppercase tracking-widest font-mono">Build Environment v1.0.0</p>
+
+        {mode === 'select' ? (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg active:scale-95 text-[12px]"
+            >
+              <LogIn size={15} /> 구글 계정으로 로그인
+            </button>
+            <div className="flex items-center gap-3 my-1">
+              <div className="flex-1 h-px bg-slate-700"></div>
+              <span className="text-[10px] text-slate-500 font-mono">OR</span>
+              <div className="flex-1 h-px bg-slate-700"></div>
+            </div>
+            <button
+              onClick={() => setMode('pin')}
+              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 text-slate-300 font-bold py-3 px-4 rounded-lg transition-all text-[12px]"
+            >
+              🔑 간편 로그인 (아이디 + PIN)
+            </button>
+            <p className="text-[10px] text-slate-600 mt-1">만든이: 초실행관</p>
+          </div>
+        ) : (
+          <form onSubmit={handlePinLogin} className="flex flex-col gap-3 text-left">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">아이디</label>
+              <input
+                type="text"
+                value={pinId}
+                onChange={e => setPinId(e.target.value)}
+                placeholder="영문·숫자·한글"
+                autoComplete="username"
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-3 text-sm text-white outline-none focus:border-indigo-500 transition-all font-medium"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">PIN (6자리 숫자)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="••••••"
+                autoComplete="current-password"
+                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-3 text-sm text-white outline-none focus:border-indigo-500 transition-all font-mono tracking-[0.5em]"
+              />
+            </div>
+            {pinError && <p className="text-[11px] text-rose-400 font-medium">{pinError}</p>}
+            <button
+              type="submit"
+              disabled={pinLoading}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-all text-[12px] active:scale-95 mt-1"
+            >
+              {pinLoading ? '로그인 중...' : '로그인 / 가입하기'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('select'); setPinError(''); }}
+              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              ← 뒤로
+            </button>
+            <p className="text-[9px] text-slate-600 text-center">처음 입력하면 자동으로 계정이 생성됩니다</p>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const Logo = ({ size = 24 }: { size?: number }) => {
   const [error, setError] = useState(false);
@@ -125,54 +253,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#0f172a] p-4 font-sans max-h-screen overflow-hidden">
-        <div className="bg-[#1e293b] p-8 rounded-xl shadow-2xl border border-slate-800 text-center max-w-sm w-full relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-600"></div>
-          <div className="mx-auto mb-6 flex justify-center">
-            <div className="relative group/logo">
-              <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover/logo:opacity-50 transition duration-1000 group-hover/logo:duration-200"></div>
-              <div className="relative w-32 h-32 bg-[#1e293b] rounded-2xl flex items-center justify-center p-4 border border-slate-700 shadow-2xl transition-transform duration-500 group-hover/logo:scale-105 group-hover/logo:border-pink-500/50">
-                <Logo size={64} />
-              </div>
-            </div>
-          </div>
-          <h1 className="text-xl font-bold text-white mb-2 tracking-tight">실행자들 ARCHITECT</h1>
-          <p className="text-slate-400 mb-8 text-[11px] uppercase tracking-widest font-mono">Build Environment v1.0.0</p>
-          
-          <div className="flex flex-col gap-3">
-            <button 
-              onClick={async () => {
-                try { 
-                  setRenderError(null);
-                  await loginWithGoogle(); 
-                } catch (e: any) { 
-                  console.error("Login attempt failed:", e);
-                  let errorMessage = `로그인 중 문제가 발생했습니다: ${e.message || '알 수 없는 오류'}`;
-                  
-                  if (e.code === 'auth/unauthorized-domain') {
-                    errorMessage = `현재 도메인(${window.location.hostname})이 Firebase '승인된 도메인'에 등록되지 않았습니다.\n\nFirebase Console > Authentication > Settings > Authorized Domains에 해당 도메인을 추가해 주세요.`;
-                  } else if (e.code === 'auth/popup-blocked') {
-                    errorMessage = '팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해 주세요.';
-                  } else if (e.code === 'auth/popup-closed-by-user') {
-                    errorMessage = '로그인 창이 닫혔습니다. 다시 시도해 주세요.';
-                  } else if (e.code === 'auth/network-request-failed') {
-                    errorMessage = '네트워크 연결 상태를 확인해 주세요.';
-                  }
-                  
-                  setRenderError(errorMessage);
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg active:scale-95 text-[12px]"
-            >
-              <LogIn size={16} />
-              구글 계정으로 시작하기
-            </button>
-            <p className="text-[10px] text-slate-500 mt-2">만든이:초실행관</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoginScreen onError={setRenderError} />;
   }
 
   if (profile === null) {

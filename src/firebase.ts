@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver, signOut } from 'firebase/auth';
+import { initializeAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -57,6 +57,27 @@ export const handleRedirectResult = async () => {
   } catch (error: any) {
     console.error("Redirect result error:", error);
     throw error;
+  }
+};
+
+// 한글 포함 아이디를 안전한 이메일로 변환 (base64 인코딩)
+const toEmail = (id: string) => {
+  const safe = btoa(encodeURIComponent(id.trim().toLowerCase())).replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
+  return `${safe}@shj.choshg.com`;
+};
+
+export const loginWithPin = async (id: string, pin: string) => {
+  const email = toEmail(id);
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pin);
+    return result.user;
+  } catch (err: any) {
+    // 계정 없으면 자동 생성
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+      const result = await createUserWithEmailAndPassword(auth, email, pin);
+      return result.user;
+    }
+    throw err;
   }
 };
 
