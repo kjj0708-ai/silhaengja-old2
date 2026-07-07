@@ -56,7 +56,7 @@ export function useAdminNotifications(adminRole: 'manager' | 'treasurer' | null)
     knownPostIds.current = null; // reset on re-mount
 
     const unsub = onSnapshot(collection(db, 'posts'), (snap) => {
-      const ids = new Set(snap.docs.map(d => d.id));
+      const ids = new Set<string>(snap.docs.map(d => d.id));
       if (knownPostIds.current === null) {
         knownPostIds.current = ids;
         return;
@@ -91,7 +91,7 @@ export function useAdminNotifications(adminRole: 'manager' | 'treasurer' | null)
     knownRegIds.current = null;
 
     const unsub = onSnapshot(collection(db, 'meeting_registrations'), (snap) => {
-      const ids = new Set(snap.docs.map(d => d.id));
+      const ids = new Set<string>(snap.docs.map(d => d.id));
       if (knownRegIds.current === null) {
         knownRegIds.current = ids;
         return;

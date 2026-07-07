@@ -1,10 +1,19 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import { initializeAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer, updateDoc } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import firebaseConfig from '../firebase-applet-config.json';
 
 const VAPID_KEY = 'BK_ZRP5ww_NanPydx37qc7Oqgdp1Y5sJvO4s4GLr3CCBeWR3yDq8Yy6WfrjRX65DWkx5MIHlh-XVywKNViMyPVs';
+const FIRESTORE_DATABASE_ID = import.meta.env.VITE_FIRESTORE_DATABASE_ID || 'ai-studio-77216921-7d28-4c63-aaef-162b0f493f51';
+
+const firebaseConfig: FirebaseOptions = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
 
 const app = initializeApp(firebaseConfig);
 
@@ -13,8 +22,8 @@ export const auth = initializeAuth(app, {
   persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
   popupRedirectResolver: browserPopupRedirectResolver,
 });
-// Use the exact database ID from config
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
+// Use the named Firestore database used by the existing production data.
+export const db = getFirestore(app, FIRESTORE_DATABASE_ID);
 
 export const testFirestoreConnection = async () => {
   try {

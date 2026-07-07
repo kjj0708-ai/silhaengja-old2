@@ -6,8 +6,10 @@
       "ignore": ["node_modules", ".git", "firebase-debug.log", "*.local"]
     }
   ],
-  "firestore": {
-    "database": "ai-studio-77216921-7d28-4c63-aaef-162b0f493f51",
-    "rules": "firestore.rules"
-  }
+  "firestore": [
+    {
+      "database": "ai-studio-77216921-7d28-4c63-aaef-162b0f493f51",
+      "rules": "firestore.rules"
+    }
+  ]
 }
