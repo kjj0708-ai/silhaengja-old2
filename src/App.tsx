@@ -183,9 +183,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [exitFallbackVisible, setExitFallbackVisible] = useState(false);
 
   // 뒤로가기 히스토리 관리 (ref 사용으로 stale closure 방지)
   const tabHistoryRef = useRef<string[]>([]);
+  const exitRequestedRef = useRef(false);
 
   const { profile, adminRole, createProfile, updateProfileInfo, loadingProfile } = useUserRole(user);
 
@@ -221,6 +223,7 @@ export default function App() {
     window.history.replaceState({ appEntry: true }, '');
 
     const handlePopState = () => {
+      if (exitRequestedRef.current) return;
       const history = tabHistoryRef.current;
       if (history.length > 0) {
         // 이전 탭으로 복귀
@@ -232,7 +235,15 @@ export default function App() {
       } else {
         // 히스토리 없음 → 앱 종료 확인
         if (window.confirm('앱을 종료하시겠습니까?')) {
-          window.history.go(-1); // 실제로 뒤로 이동 (PWA 종료)
+          exitRequestedRef.current = true;
+          tabHistoryRef.current = [];
+          window.close();
+          if (window.history.length > 1) {
+            window.history.go(-2);
+          }
+          window.setTimeout(() => {
+            setExitFallbackVisible(true);
+          }, 700);
         } else {
           window.history.pushState({ appEntry: true }, ''); // ghost 엔트리 복원
         }
@@ -245,6 +256,7 @@ export default function App() {
 
   // 탭 전환 핸들러 (뒤로가기 히스토리 쌓기)
   const handleTabChange = useCallback((tab: string) => {
+    if (exitRequestedRef.current) return;
     setActiveTab(prev => {
       if (prev === tab) return prev;
       tabHistoryRef.current = [...tabHistoryRef.current, prev];
@@ -294,6 +306,30 @@ export default function App() {
 
   if (!user) {
     return <LoginScreen onError={setRenderError} />;
+  }
+
+  if (exitFallbackVisible) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 max-w-sm w-full text-center">
+          <h1 className="text-lg font-black text-[#0b1f3a] mb-2">앱 종료 준비 완료</h1>
+          <p className="text-[14px] text-slate-600 leading-snug mb-4">
+            브라우저 또는 휴대폰 환경에서 앱 닫기가 차단되었습니다. 휴대폰의 뒤로가기나 홈 버튼으로 종료해 주세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              exitRequestedRef.current = false;
+              setExitFallbackVisible(false);
+              window.history.pushState({ appEntry: true }, '');
+            }}
+            className="bg-[#0b1f3a] text-yellow-300 px-4 py-2 rounded-md text-[14px] font-bold"
+          >
+            앱으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (profile === null) {
