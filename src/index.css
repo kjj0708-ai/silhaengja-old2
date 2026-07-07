@@ -12,6 +12,113 @@
 
 @layer base {
   body {
-    @apply bg-brand-bg text-slate-200 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased;
   }
+}
+
+.clean-app main {
+  color: #0f172a;
+  line-height: 1.45;
+}
+
+.clean-app main .bg-\[\#1e293b\],
+.clean-app main .bg-\[\#0f172a\],
+.clean-app main .bg-slate-800,
+.clean-app main .bg-slate-900\/30,
+.clean-app main .bg-slate-800\/50,
+.clean-app main .bg-\[\#0f172a\]\/50 {
+  background-color: #ffffff !important;
+}
+
+.clean-app main .border-slate-800,
+.clean-app main .border-slate-800\/30,
+.clean-app main .border-slate-800\/50,
+.clean-app main .border-slate-700,
+.clean-app main .border-slate-700\/50 {
+  border-color: #e2e8f0 !important;
+}
+
+.clean-app main :not(button):not(a).text-white,
+.clean-app main :not(button):not(a).text-slate-200,
+.clean-app main :not(button):not(a).text-slate-300 {
+  color: #334155 !important;
+}
+
+.clean-app main h1,
+.clean-app main h2,
+.clean-app main h3,
+.clean-app main h4,
+.clean-app main .font-black.text-white,
+.clean-app main .font-bold.text-white {
+  color: #0f172a !important;
+}
+
+.clean-app main input,
+.clean-app main textarea,
+.clean-app main select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  color-scheme: light;
+}
+
+.clean-app main input::placeholder,
+.clean-app main textarea::placeholder {
+  color: #94a3b8;
+}
+
+.clean-app main .shadow-2xl,
+.clean-app main .shadow-xl,
+.clean-app main .shadow-lg {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+}
+
+.clean-app main .rounded-2xl {
+  border-radius: 0.5rem !important;
+}
+
+.clean-app main .rounded-xl {
+  border-radius: 0.5rem !important;
+}
+
+.clean-app main .gap-8 {
+  gap: 1rem !important;
+}
+
+.clean-app main .gap-6 {
+  gap: 0.875rem !important;
+}
+
+.clean-app main .p-6 {
+  padding: 1rem !important;
+}
+
+.clean-app main .p-4 {
+  padding: 0.75rem !important;
+}
+
+.clean-app main .px-6 {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+.clean-app main .py-20 {
+  padding-top: 3rem !important;
+  padding-bottom: 3rem !important;
+}
+
+.clean-app main .leading-relaxed {
+  line-height: 1.45 !important;
+}
+
+.clean-app main .tracking-widest {
+  letter-spacing: 0.03em !important;
+}
+
+.clean-app main .text-\[17px\] {
+  font-size: 0.875rem !important;
+}
+
+.clean-app main .text-\[19px\] {
+  font-size: 1rem !important;
 }

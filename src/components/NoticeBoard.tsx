@@ -40,7 +40,10 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
   const [isResizing, setIsResizing] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editIsImportant, setEditIsImportant] = useState(false);
+  const [editImage, setEditImage] = useState<string | null>(null);
 
   // Comment state
   const [openComments, setOpenComments] = useState<Set<string>>(new Set());
@@ -129,6 +132,27 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
     }
   };
 
+  const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsResizing(true);
+    try {
+      if (file.size <= 307200) {
+        const reader = new FileReader();
+        reader.onload = (event) => setEditImage(event.target?.result as string);
+        reader.readAsDataURL(file);
+      } else {
+        const resized = await resizeImage(file);
+        setEditImage(resized);
+      }
+    } catch (err) {
+      console.error("Image resize error:", err);
+    } finally {
+      setIsResizing(false);
+      e.target.value = '';
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
@@ -164,13 +188,31 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
 
   const handleStartEdit = (post: Post) => {
     setEditingPostId(post.id);
+    setEditTitle(post.title || '');
     setEditContent(post.content);
+    setEditIsImportant(!!post.isImportant);
+    setEditImage(post.image || null);
   };
 
-  const handleSaveEdit = async (id: string) => {
+  const handleSaveEdit = async (post: Post) => {
+    if (!editContent.trim()) return safeAlert('내용을 입력해 주세요.');
+    if (post.category === 'notice' && !editTitle.trim()) return safeAlert('공지 제목을 입력해 주세요.');
     try {
-      await updateDoc(doc(db, 'posts', id), { content: editContent, updatedAt: serverTimestamp() });
+      const payload: any = {
+        content: editContent.trim(),
+        updatedAt: serverTimestamp(),
+        image: editImage || null,
+      };
+      if (post.category === 'notice') {
+        payload.title = editTitle.trim();
+        payload.isImportant = editIsImportant;
+      }
+      await updateDoc(doc(db, 'posts', post.id), payload);
       setEditingPostId(null);
+      setEditTitle('');
+      setEditContent('');
+      setEditIsImportant(false);
+      setEditImage(null);
     } catch (e) {
       safeAlert('수정 실패');
     }
@@ -262,18 +304,18 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full animate-in fade-in duration-500">
+    <div className="flex flex-col gap-3 w-full animate-in fade-in duration-500">
       {/* Category Tabs */}
-      <div className="flex bg-[#1e293b] p-1 rounded-xl border border-slate-800 shadow-xl self-start">
+      <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm self-start">
         <button
           onClick={() => { setActiveCategory('notice'); setImage(null); }}
-          className={`px-6 py-2 rounded-lg text-[15px] font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeCategory === 'notice' ? 'bg-[#0f172a] text-indigo-400 shadow-2xl border border-slate-700' : 'text-slate-300 hover:text-slate-300'}`}
+          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 ${activeCategory === 'notice' ? 'bg-[#0b1f3a] text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
         >
           <Megaphone size={14} /> 공지사항
         </button>
         <button
           onClick={() => { setActiveCategory('free'); setImage(null); }}
-          className={`px-6 py-2 rounded-lg text-[15px] font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeCategory === 'free' ? 'bg-[#0f172a] text-emerald-400 shadow-2xl border border-slate-700' : 'text-slate-300 hover:text-slate-300'}`}
+          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 ${activeCategory === 'free' ? 'bg-[#0b1f3a] text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
         >
           <MessageSquare size={14} /> 자유게시판
         </button>
@@ -281,7 +323,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
 
       {/* Post Creation */}
       {(activeCategory === 'free' || (activeCategory === 'notice' && adminRole === 'manager')) && (
-        <div className="bg-[#1e293b] p-3 rounded-xl border border-slate-800 shadow-2xl">
+        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
           <form onSubmit={handleCreate} className="flex flex-col gap-2">
             {activeCategory === 'notice' && (
               <input
@@ -289,7 +331,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="제목"
-                className="w-full p-2 bg-[#0f172a] border border-slate-700 rounded-lg text-[15px] text-white outline-none focus:border-indigo-500 font-bold"
+                className="w-full p-2 bg-white border border-slate-300 rounded-md text-[14px] text-slate-900 outline-none focus:border-[#0b1f3a] font-bold"
                 required
               />
             )}
@@ -299,12 +341,12 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                 onChange={e => setContent(e.target.value)}
                 placeholder={activeCategory === 'notice' ? "내용을 입력하세요..." : "자유롭게 이야기를 나누세요 (링크 지원)"}
                 rows={3}
-                className="w-full p-2 bg-[#0f172a] border border-slate-700 rounded-lg text-[15px] text-white outline-none focus:border-indigo-500 font-medium leading-relaxed resize-none"
+                className="w-full p-2 bg-white border border-slate-300 rounded-md text-[14px] text-slate-900 outline-none focus:border-[#0b1f3a] font-medium leading-snug resize-none"
                 required
               />
               <div className="absolute bottom-2 right-2">
                 <input type="file" id="post-image" className="hidden" accept="image/*" onChange={handleFileChange} />
-                <label htmlFor="post-image" className="cursor-pointer text-slate-300 hover:text-white transition-colors">
+                <label htmlFor="post-image" className="cursor-pointer text-slate-500 hover:text-[#0b1f3a] transition-colors">
                   <ImageIcon size={16} />
                 </label>
               </div>
@@ -321,13 +363,13 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
               {activeCategory === 'notice' ? (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={isImportant} onChange={e => setIsImportant(e.target.checked)} className="rounded border-slate-700 bg-[#0f172a] text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
-                  <span className="text-[13px] text-slate-200 font-bold uppercase tracking-wide">중요 고정</span>
+                  <span className="text-[13px] text-slate-700 font-bold">중요 고정</span>
                 </label>
               ) : <div></div>}
               <button
                 type="submit"
                 disabled={isResizing}
-                className={`${activeCategory === 'notice' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white text-[13px] font-black px-6 py-1.5 rounded-lg transition-all uppercase tracking-widest shadow-xl active:scale-95 disabled:opacity-50`}
+                className="bg-[#0b1f3a] hover:bg-[#12345e] text-white text-[13px] font-bold px-5 py-1.5 rounded-md transition-all active:scale-95 disabled:opacity-50"
               >
                 {isResizing ? '최적화 중...' : '등록'}
               </button>
@@ -344,7 +386,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
           const isOpen = openComments.has(post.id);
 
           return (
-            <div key={post.id} className={`bg-[#1e293b] rounded-xl border ${post.isImportant ? 'border-indigo-500/50 bg-indigo-900/10' : 'border-slate-800'} shadow-lg relative group transition-all hover:border-slate-700 overflow-hidden`}>
+            <div key={post.id} className={`bg-white rounded-lg border ${post.isImportant ? 'border-[#0b1f3a]' : 'border-slate-200'} shadow-sm relative group transition-all hover:border-slate-300 overflow-hidden`}>
               {post.isImportant && (
                 <div className="absolute top-3 right-3 text-indigo-400">
                   <Pin size={12} fill="currentColor" />
@@ -366,8 +408,8 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                     )}
                   </div>
                   {(adminRole === 'manager' || post.authorUid === profile.uid) && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-                      <button onClick={() => handleStartEdit(post)} className="text-slate-300 hover:text-amber-500 transition-colors p-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <button onClick={() => handleStartEdit(post)} className="text-slate-500 hover:text-[#0b1f3a] transition-colors p-1" title="수정">
                         <Pencil size={12} />
                       </button>
                       {confirmDeleteId === post.id ? (
@@ -375,7 +417,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                           삭제확정
                         </button>
                       ) : (
-                        <button onClick={() => setConfirmDeleteId(post.id)} className="text-slate-300 hover:text-red-400 transition-colors p-1">
+                        <button onClick={() => setConfirmDeleteId(post.id)} className="text-slate-500 hover:text-red-500 transition-colors p-1" title="삭제">
                           <Trash2 size={12} />
                         </button>
                       )}
@@ -386,19 +428,63 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                 {/* 본문 */}
                 {editingPostId === post.id ? (
                   <div className="flex flex-col gap-2 mb-2">
+                    {post.category === 'notice' && (
+                      <input
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        className="w-full p-2 bg-[#0f172a] border border-slate-700 rounded-lg text-[15px] text-white outline-none focus:border-indigo-500 font-bold"
+                        placeholder="공지 제목"
+                      />
+                    )}
                     <textarea
                       value={editContent}
                       onChange={e => setEditContent(e.target.value)}
                       className="w-full p-2 bg-[#0f172a] border border-slate-700 rounded-lg text-[15px] text-white outline-none focus:border-indigo-500 font-medium resize-none"
                       rows={3}
                     />
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => setEditingPostId(null)} className="p-1.5 text-slate-200 hover:bg-slate-800 rounded"><X size={14} /></button>
-                      <button onClick={() => handleSaveEdit(post.id)} className="p-1.5 text-white bg-indigo-600 rounded hover:bg-indigo-500"><Check size={14} /></button>
+                    {editImage && (
+                      <div className="relative w-24 h-24 rounded-lg border border-slate-700 overflow-hidden">
+                        <img src={editImage} className="w-full h-full object-cover" alt="edit preview" />
+                        <button type="button" onClick={() => setEditImage(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1">
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        {post.category === 'notice' && (
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={editIsImportant} onChange={e => setEditIsImportant(e.target.checked)} className="rounded border-slate-700 bg-[#0f172a] text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5" />
+                            <span className="text-[13px] text-slate-200 font-bold">중요 고정</span>
+                          </label>
+                        )}
+                        <label className="inline-flex items-center gap-1.5 text-[13px] font-bold text-slate-300 hover:text-slate-900 cursor-pointer">
+                          <ImageIcon size={14} />
+                          이미지 변경
+                          <input type="file" className="hidden" accept="image/*" onChange={handleEditFileChange} />
+                        </label>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => { setEditingPostId(null); setEditImage(null); }}
+                          className="p-1.5 text-slate-200 hover:bg-slate-800 rounded"
+                          title="취소"
+                        >
+                          <X size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleSaveEdit(post)}
+                          disabled={isResizing}
+                          className="p-1.5 text-white bg-indigo-600 rounded hover:bg-indigo-500 disabled:opacity-50"
+                          title="저장"
+                        >
+                          <Check size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-[15px] text-slate-300 whitespace-pre-wrap leading-snug mb-2 font-medium">
+                  <div className="text-[14px] text-slate-700 whitespace-pre-wrap leading-snug mb-2 font-medium">
                     {renderText(post.content)}
                   </div>
                 )}
