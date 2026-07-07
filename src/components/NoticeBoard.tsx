@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, onSnapshot, doc, addDoc, deleteDoc, serverTimestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Megaphone, Plus, Trash2, Pin, MessageSquare, Image as ImageIcon, X, Check, Pencil, ChevronDown, ChevronUp, CornerDownRight, Send } from 'lucide-react';
@@ -12,6 +12,7 @@ interface Post {
   category: 'notice' | 'free';
   isImportant?: boolean;
   image?: string;
+  images?: string[];
   authorUid: string;
   authorName: string;
   createdAt: any;
@@ -35,7 +36,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isImportant, setIsImportant] = useState(false);
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -43,7 +44,11 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editIsImportant, setEditIsImportant] = useState(false);
-  const [editImage, setEditImage] = useState<string | null>(null);
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [viewerImages, setViewerImages] = useState<string[] | null>(null);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerScale, setViewerScale] = useState(1);
+  const lastTouchDistanceRef = useRef<number | null>(null);
 
   // Comment state
   const [openComments, setOpenComments] = useState<Set<string>>(new Set());
@@ -112,19 +117,27 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
     });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const readImageFile = async (file: File): Promise<string> => {
     if (file.size <= 307200) {
-      const reader = new FileReader();
-      reader.onload = (e) => setImage(e.target?.result as string);
-      reader.readAsDataURL(file);
-      return;
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result as string);
+        reader.readAsDataURL(file);
+      });
     }
+    return resizeImage(file);
+  };
+
+  const appendImageFiles = async (files: FileList | null, current: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if (!files?.length) return;
+    const slots = 3 - current.length;
+    if (slots <= 0) return safeAlert('이미지는 최대 3장까지 업로드할 수 있습니다.');
+    const selected = Array.from(files).slice(0, slots);
+    if (files.length > slots) safeAlert('이미지는 최대 3장까지만 추가됩니다.');
     setIsResizing(true);
     try {
-      const resized = await resizeImage(file);
-      setImage(resized);
+      const nextImages = await Promise.all(selected.map(readImageFile));
+      setter(prev => [...prev, ...nextImages].slice(0, 3));
     } catch (err) {
       console.error("Image resize error:", err);
     } finally {
@@ -132,25 +145,14 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await appendImageFiles(e.target.files, images, setImages);
+    e.target.value = '';
+  };
+
   const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsResizing(true);
-    try {
-      if (file.size <= 307200) {
-        const reader = new FileReader();
-        reader.onload = (event) => setEditImage(event.target?.result as string);
-        reader.readAsDataURL(file);
-      } else {
-        const resized = await resizeImage(file);
-        setEditImage(resized);
-      }
-    } catch (err) {
-      console.error("Image resize error:", err);
-    } finally {
-      setIsResizing(false);
-      e.target.value = '';
-    }
+    await appendImageFiles(e.target.files, editImages, setEditImages);
+    e.target.value = '';
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -168,9 +170,12 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
         isImportant: activeCategory === 'notice' ? isImportant : false
       };
       if (!payload.authorUid) throw new Error("사용자 인증 정보가 없습니다. 다시 로그인해 주세요.");
-      if (image) payload.image = image;
+      if (images.length > 0) {
+        payload.images = images;
+        payload.image = images[0];
+      }
       await addDoc(collection(db, 'posts'), payload);
-      setTitle(''); setContent(''); setIsImportant(false); setImage(null);
+      setTitle(''); setContent(''); setIsImportant(false); setImages([]);
       safeAlert('게시글 등록 성공!');
     } catch (err: any) {
       safeAlert('등록 실패: ' + (err.message || '알 수 없는 오류'));
@@ -191,7 +196,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
     setEditTitle(post.title || '');
     setEditContent(post.content);
     setEditIsImportant(!!post.isImportant);
-    setEditImage(post.image || null);
+    setEditImages(post.images?.length ? post.images.slice(0, 3) : (post.image ? [post.image] : []));
   };
 
   const handleSaveEdit = async (post: Post) => {
@@ -201,7 +206,8 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
       const payload: any = {
         content: editContent.trim(),
         updatedAt: serverTimestamp(),
-        image: editImage || null,
+        images: editImages,
+        image: editImages[0] || null,
       };
       if (post.category === 'notice') {
         payload.title = editTitle.trim();
@@ -212,7 +218,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
       setEditTitle('');
       setEditContent('');
       setEditIsImportant(false);
-      setEditImage(null);
+      setEditImages([]);
     } catch (e) {
       safeAlert('수정 실패');
     }
@@ -278,6 +284,36 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
     }
   };
 
+  const openImageViewer = (postImages: string[], index: number) => {
+    setViewerImages(postImages);
+    setViewerIndex(index);
+    setViewerScale(1);
+    lastTouchDistanceRef.current = null;
+  };
+
+  const closeImageViewer = () => {
+    setViewerImages(null);
+    setViewerScale(1);
+    lastTouchDistanceRef.current = null;
+  };
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    const [a, b] = [touches[0], touches[1]];
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  };
+
+  const handleViewerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 2) return;
+    e.preventDefault();
+    const distance = getTouchDistance(e.touches);
+    const lastDistance = lastTouchDistanceRef.current;
+    if (lastDistance) {
+      const ratio = distance / lastDistance;
+      setViewerScale(prev => Math.min(4, Math.max(1, prev * ratio)));
+    }
+    lastTouchDistanceRef.current = distance;
+  };
+
   const renderText = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return text.split(urlRegex).map((part, i) => {
@@ -304,18 +340,19 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
   }
 
   return (
+    <>
     <div className="flex flex-col gap-3 w-full animate-in fade-in duration-500">
       {/* Category Tabs */}
       <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm self-start">
         <button
-          onClick={() => { setActiveCategory('notice'); setImage(null); }}
-          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 ${activeCategory === 'notice' ? 'bg-[#0b1f3a] text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+          onClick={() => { setActiveCategory('notice'); setImages([]); }}
+          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 border ${activeCategory === 'notice' ? 'bg-[#0b1f3a] text-yellow-300 border-[#0b1f3a]' : 'bg-white text-[#0b1f3a] border-slate-200 hover:bg-slate-50'}`}
         >
           <Megaphone size={14} /> 공지사항
         </button>
         <button
-          onClick={() => { setActiveCategory('free'); setImage(null); }}
-          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 ${activeCategory === 'free' ? 'bg-[#0b1f3a] text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+          onClick={() => { setActiveCategory('free'); setImages([]); }}
+          className={`px-4 py-1.5 rounded-md text-[14px] font-bold transition-all flex items-center gap-2 border ${activeCategory === 'free' ? 'bg-[#0b1f3a] text-yellow-300 border-[#0b1f3a]' : 'bg-white text-[#0b1f3a] border-slate-200 hover:bg-slate-50'}`}
         >
           <MessageSquare size={14} /> 자유게시판
         </button>
@@ -345,18 +382,26 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                 required
               />
               <div className="absolute bottom-2 right-2">
-                <input type="file" id="post-image" className="hidden" accept="image/*" onChange={handleFileChange} />
+                <input type="file" id="post-image" className="hidden" accept="image/*" multiple onChange={handleFileChange} />
                 <label htmlFor="post-image" className="cursor-pointer text-slate-500 hover:text-[#0b1f3a] transition-colors">
                   <ImageIcon size={16} />
                 </label>
               </div>
             </div>
-            {image && (
-              <div className="relative w-24 h-24 rounded-lg border border-slate-700 overflow-hidden group">
-                <img src={image} className="w-full h-full object-cover" alt="preview" />
-                <button type="button" onClick={() => setImage(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <X size={10} />
-                </button>
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {images.map((src, index) => (
+                  <div key={`${src.slice(0, 24)}-${index}`} className="relative w-20 h-20 rounded-md border border-slate-200 overflow-hidden group">
+                    <img src={src} className="w-full h-full object-cover" alt={`preview ${index + 1}`} />
+                    <button
+                      type="button"
+                      onClick={() => setImages(prev => prev.filter((_, i) => i !== index))}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
             <div className="flex items-center justify-between">
@@ -384,6 +429,7 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
           const postComments = comments.filter(c => c.postId === post.id && !c.parentId);
           const totalCount = comments.filter(c => c.postId === post.id).length;
           const isOpen = openComments.has(post.id);
+          const postImages = post.images?.length ? post.images.slice(0, 3) : (post.image ? [post.image] : []);
 
           return (
             <div key={post.id} className={`bg-white rounded-lg border ${post.isImportant ? 'border-[#0b1f3a]' : 'border-slate-200'} shadow-sm relative group transition-all hover:border-slate-300 overflow-hidden`}>
@@ -442,12 +488,16 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                       className="w-full p-2 bg-[#0f172a] border border-slate-700 rounded-lg text-[15px] text-white outline-none focus:border-indigo-500 font-medium resize-none"
                       rows={3}
                     />
-                    {editImage && (
-                      <div className="relative w-24 h-24 rounded-lg border border-slate-700 overflow-hidden">
-                        <img src={editImage} className="w-full h-full object-cover" alt="edit preview" />
-                        <button type="button" onClick={() => setEditImage(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1">
-                          <X size={10} />
-                        </button>
+                    {editImages.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {editImages.map((src, index) => (
+                          <div key={`${src.slice(0, 24)}-${index}`} className="relative w-20 h-20 rounded-md border border-slate-200 overflow-hidden">
+                            <img src={src} className="w-full h-full object-cover" alt={`edit preview ${index + 1}`} />
+                            <button type="button" onClick={() => setEditImages(prev => prev.filter((_, i) => i !== index))} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1">
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -460,13 +510,13 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                         )}
                         <label className="inline-flex items-center gap-1.5 text-[13px] font-bold text-slate-300 hover:text-slate-900 cursor-pointer">
                           <ImageIcon size={14} />
-                          이미지 변경
-                          <input type="file" className="hidden" accept="image/*" onChange={handleEditFileChange} />
+                          이미지 추가 ({editImages.length}/3)
+                          <input type="file" className="hidden" accept="image/*" multiple onChange={handleEditFileChange} />
                         </label>
                       </div>
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => { setEditingPostId(null); setEditImage(null); }}
+                          onClick={() => { setEditingPostId(null); setEditImages([]); }}
                           className="p-1.5 text-slate-200 hover:bg-slate-800 rounded"
                           title="취소"
                         >
@@ -489,14 +539,22 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
                   </div>
                 )}
 
-                {post.image && (
-                  <div className="mb-2 rounded-lg overflow-hidden border border-slate-800 shadow-xl max-w-sm">
-                    <img
-                      src={post.image}
-                      alt="post content"
-                      className="w-full h-auto cursor-zoom-in brightness-90 hover:brightness-100 transition-all"
-                      onClick={() => window.open(post.image, '_blank')}
-                    />
+                {postImages.length > 0 && (
+                  <div className="mb-2 grid grid-cols-3 gap-2 max-w-md">
+                    {postImages.map((src, index) => (
+                      <button
+                        key={`${src.slice(0, 24)}-${index}`}
+                        type="button"
+                        onClick={() => openImageViewer(postImages, index)}
+                        className="aspect-square rounded-md overflow-hidden border border-slate-200 bg-slate-50 cursor-zoom-in"
+                      >
+                        <img
+                          src={src}
+                          alt={`post content ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -652,5 +710,61 @@ export default function NoticeBoard({ adminRole, profile }: { adminRole: 'manage
         )}
       </div>
     </div>
+    {viewerImages && (
+      <div
+        className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-3"
+        onWheel={(e) => setViewerScale(prev => Math.min(4, Math.max(1, prev + (e.deltaY < 0 ? 0.2 : -0.2))))}
+        onTouchMove={handleViewerTouchMove}
+        onTouchEnd={() => { lastTouchDistanceRef.current = null; }}
+      >
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-white">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewerScale(prev => Math.max(1, prev - 0.25))}
+              className="px-3 py-1 rounded bg-white/10 text-yellow-300 font-bold"
+            >
+              -
+            </button>
+            <span className="text-[13px] font-bold">{Math.round(viewerScale * 100)}%</span>
+            <button
+              type="button"
+              onClick={() => setViewerScale(prev => Math.min(4, prev + 0.25))}
+              className="px-3 py-1 rounded bg-white/10 text-yellow-300 font-bold"
+            >
+              +
+            </button>
+          </div>
+          <button type="button" onClick={closeImageViewer} className="p-2 rounded-full bg-white/10 text-white">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="w-full h-full flex items-center justify-center overflow-auto pt-10 pb-14">
+          <img
+            src={viewerImages[viewerIndex]}
+            alt="expanded post"
+            className="max-w-full max-h-full object-contain transition-transform"
+            style={{ transform: `scale(${viewerScale})` }}
+          />
+        </div>
+
+        {viewerImages.length > 1 && (
+          <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-2">
+            {viewerImages.map((src, index) => (
+              <button
+                key={`${src.slice(0, 24)}-${index}`}
+                type="button"
+                onClick={() => { setViewerIndex(index); setViewerScale(1); }}
+                className={`w-12 h-12 rounded overflow-hidden border ${viewerIndex === index ? 'border-yellow-300' : 'border-white/30'}`}
+              >
+                <img src={src} alt={`thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+    </>
   );
 }

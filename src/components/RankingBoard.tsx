@@ -50,32 +50,32 @@ export default function RankingBoard({ adminRole }: { adminRole: 'manager' | 'tr
   });
 
   return (
-    <div className="flex flex-col gap-10 w-full animate-in fade-in duration-500">
+    <div className="flex flex-col gap-2 w-full animate-in fade-in duration-500">
       {/* Leaderboard Table */}
-      <div className="bg-[#1e293b] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden max-w-2xl mx-auto w-full mt-4">
-        <div className="p-4 bg-slate-800/50 border-b border-slate-800 flex items-center justify-between">
-           <span className="text-[13px] font-bold uppercase tracking-widest text-slate-200">실행자 전체 랭킹 현황</span>
-           <div className="flex items-center gap-2 text-[13px] font-mono text-slate-300">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden max-w-2xl mx-auto w-full">
+        <div className="px-3 py-2 bg-white border-b border-slate-200 flex items-center justify-between">
+           <span className="text-[12px] font-bold text-slate-800">실행자 전체 랭킹</span>
+           <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 실시간 동기화
            </div>
         </div>
         <div className="flex flex-col">
           {rankedMembers.map((member) => (
-            <div key={member.uid} className="flex items-center gap-3 px-4 py-1.5 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors group">
-              <div className="w-6 text-[16px] font-black font-mono text-slate-300 group-hover:text-amber-400 transition-colors flex justify-center italic shrink-0">
+            <div key={member.uid} className="flex items-center gap-2 px-3 py-0.5 min-h-[34px] border-b border-slate-100 hover:bg-slate-50 transition-colors group">
+              <div className="w-6 text-[13px] font-black font-mono text-slate-500 group-hover:text-amber-500 transition-colors flex justify-center italic shrink-0">
                 {member.rank}
               </div>
               <div className="flex-1 flex items-center justify-between min-w-0">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[16px] font-bold text-white group-hover:translate-x-1 transition-transform truncate">{member.name}</span>
+                  <div className="flex items-baseline gap-1.5 min-w-0">
+                    <span className="text-[14px] font-bold text-slate-900 truncate shrink-0">{member.name}</span>
+                    <span className="text-[11px] text-slate-500 truncate min-w-0">{member.affiliation || '소속 정보 없음'}</span>
                     {member.role === 'manager' && <span className="bg-amber-500/10 text-amber-500 text-[11px] px-1 rounded border border-amber-500/20 font-black shrink-0">관리자</span>}
                     {member.role === 'treasurer' && <span className="bg-emerald-500/10 text-emerald-500 text-[11px] px-1 rounded border border-emerald-500/20 font-black shrink-0">총무</span>}
                   </div>
-                  <div className="text-[17px] text-slate-300 font-medium truncate leading-tight">{member.affiliation || '소속 정보 없음'}</div>
                 </div>
                 <div className="text-right shrink-0 ml-2">
-                  <div className="text-[17px] font-black text-indigo-400 font-mono tracking-tighter">{member.totalPoints.toLocaleString()} <span className="text-[17px] opacity-60">PT</span></div>
+                  <div className="text-[13px] font-black text-[#0b1f3a] font-mono tracking-tight">{member.totalPoints.toLocaleString()} <span className="text-[11px] opacity-60">PT</span></div>
                 </div>
               </div>
             </div>

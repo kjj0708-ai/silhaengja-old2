@@ -336,7 +336,7 @@ export default function MeetingBoard({
                 <input type="number" required min="1" value={newMax} onChange={v => setNewMax(Number(v.target.value))}
                   className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-indigo-500 font-mono" />
               </div>
-              <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[15px] font-bold py-2 rounded-lg uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+              <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-yellow-300 text-[15px] font-bold py-2 rounded-lg uppercase tracking-widest shadow-lg active:scale-95 transition-all">
                 생성하기
               </button>
             </div>

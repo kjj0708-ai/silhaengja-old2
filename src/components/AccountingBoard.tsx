@@ -125,7 +125,7 @@ export default function AccountingBoard({ adminRole }: { adminRole: 'manager' | 
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full p-1.5 bg-[#0f172a] border border-slate-700 rounded-lg text-xs text-white outline-none focus:border-indigo-500" placeholder="예: 월회비 입금" required />
             </div>
             <div className="col-span-2 sm:col-span-4 flex justify-end">
-              <button type="submit" className="bg-indigo-600 text-white text-[13px] font-bold px-6 py-1.5 rounded-lg hover:bg-indigo-500 uppercase tracking-widest">기록 확정</button>
+              <button type="submit" className="bg-indigo-600 text-yellow-300 text-[13px] font-bold px-6 py-1.5 rounded-lg hover:bg-indigo-500 uppercase tracking-widest">기록 확정</button>
             </div>
           </form>
         </div>
